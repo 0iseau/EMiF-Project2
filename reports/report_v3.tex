@@ -1,0 +1,796 @@
+\documentclass[11pt,a4paper]{article}
+
+% -- Packages 
+\usepackage[utf8]{inputenc}  % source kept ASCII; accents via LaTeX commands
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage[hidelinks,colorlinks=false]{hyperref}
+\usepackage{setspace}
+\usepackage{microtype}
+\usepackage{parskip}
+\usepackage{natbib}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{appendix}
+\usepackage{enumitem}
+\usepackage{xcolor}
+
+% -- Typography 
+\setstretch{1.12}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\captionsetup{font=small,labelfont=bf}
+
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}[{\vspace{-4pt}\rule{\textwidth}{0.5pt}\vspace{2pt}}]
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection.}{0.5em}{}
+\titlespacing{\section}{0pt}{12pt}{4pt}
+\titlespacing{\subsection}{0pt}{8pt}{2pt}
+
+% -- Header / footer 
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\small\textit{EMiF Project 2}}
+\lhead{\small\textit{Risk Structure After COVID-19}}
+\cfoot{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% -- Convenience macros 
+\newcommand{\rhobar}{\bar{\rho}}
+\newcommand{\sigmaEq}{\sigma^{\text{eq}}}
+\newcommand{\lambdaOne}{\lambda_1}
+\newcommand{\Keff}{K_{\text{eff}}}
+\newcommand{\Dpost}{D^{\text{post}}}
+
+% 
+\begin{document}
+% 
+
+% -- Title page 
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+
+{\LARGE\bfseries Has the Structure of Risk Changed Since COVID-19?}\\[0.6em]
+{\large A walk through volatility, diversification and the way shocks travel}
+
+\vspace{1.2cm}
+\rule{0.7\textwidth}{0.5pt}
+\vspace{0.8cm}
+
+{\large\textit{Empirical Methods in Finance, Project 2}}\\[0.3em]
+{\normalsize Professor Florian Ielpo}\\[0.2em]
+{\normalsize University of Lausanne~$\mid$~Master of Science in Finance}
+
+\vspace{1.2cm}
+
+{\normalsize
+\begin{tabular}{ll}
+\multicolumn{2}{l}{\textbf{Group members:}}\\[4pt]
+& Danny Al Fallouji\\
+& Selim Grar\\
+& Diona Avdija\\
+\end{tabular}}
+
+\vspace{1.2cm}
+{\normalsize May 2026}
+
+\vspace{1.5cm}
+
+\begin{minipage}{0.9\textwidth}
+\small
+\textbf{Abstract.}~
+We ask a simple question: after the COVID-19 shock of March 2020, did the structure of financial risk
+actually change, or did markets just go through a violent but temporary scare? We use 14 daily series
+from January 1990 to April 2026 and a small set of tools from the course, picked one by one as the data
+tell us what to look at next. Our answer is \emph{partially}. The average level of volatility and the
+average level of correlation did not move. What moved is the \emph{dynamics}: volatility shocks now hit
+a bit harder and fade faster (GARCH likelihood-ratio test, $p=0.003$), and cross-asset correlations
+react faster to shared shocks (DCC test, $p<0.001$). Factor concentration tightened only weakly: under
+honest inference the average number of independent risk factors did not fall significantly, but its
+variability did. Tail losses look heavier, yet our post-COVID sample is too short to confirm it at the
+1\% tail. The static link between volatility and correlation did not change. The practical message: update
+the parts of a risk model that describe \emph{how fast} risk moves, not the parts that describe its
+average level.
+\end{minipage}
+
+\end{titlepage}
+
+% -- Table of contents 
+\tableofcontents
+\thispagestyle{fancy}
+\newpage
+
+% 
+\section{Introduction and Related Work}
+% 
+
+In a few weeks of March 2020 the S\&P~500 fell by more than a third, oil futures briefly traded below
+zero, and assets that normally drift apart suddenly dropped together. It was the sharpest shock to
+markets since 2008. Five years on, a fair question for a risk manager is whether that episode left a
+mark on the \emph{structure} of risk, or whether markets simply passed through an extreme moment and
+went back to behaving as before.
+
+We need to say what ``structure of risk'' means before we can test it. We take it to be the shape of the
+joint distribution of asset returns, described by a few features a portfolio manager actually cares
+about: how big individual shocks are, how heavy the tails are, how much assets move together, how many
+independent risk factors are left for diversification, and how shocks travel and persist over time. This
+is deliberately a list of distinct features, because a market can keep the same \emph{average}
+correlation while its tails get heavier or its factor structure gets tighter. Lumping everything into one
+number would hide exactly the kind of change we are looking for.
+
+Why does it matter in practice? Risk limits, diversification budgets and regulatory capital are all
+calibrated on history. If the structure of risk shifted after 2020, a model fed with pre-2020 parameters
+will give biased answers, and the bias will be silent. So the question is not academic curiosity; it
+decides whether old calibrations can still be trusted.
+
+The literature gives us both the hypotheses and the warnings. \citet{longin2001} and \citet{forbes2002}
+show that correlations rise in turbulent periods, and that this is partly mechanical: when volatility is
+high, measured correlation goes up almost by construction. That tells us to separate a genuine COVID
+effect from this mechanical link. \citet{engle1982} and \citet{bollerslev1986} give us the ARCH/GARCH
+family for volatility clustering, and \citet{glosten1993} the asymmetric version where bad news raises
+volatility more than good news. For correlation that changes through time, \citet{engle2002} provides
+the DCC model. \citet{embrechts1997} give the extreme-value tools for the tail. For regimes we lean on
+\citet{hamilton1989}, and \citet{ang2002} add the useful point that correlations are themselves
+regime-dependent. \citet{bae2003} push the idea further: diversification collapses when assets crash
+together. The COVID papers came fast. \citet{baker2020} show the uncertainty shock was historically
+large, but most of that early work stopped at the crisis weeks and never asked whether the change
+stuck. That longer-horizon question is the gap we try to fill.
+
+Our plan is a single thread, not a pile of tests. The preliminary diagnostics choose our tools, and we
+then walk three blocks where each one answers the question the previous block leaves open. Block~A is
+about the marginals: how big and how heavy are individual shocks? We answer it with realised volatility,
+GARCH and extreme-value theory. Block~B asks whether diversification still works, using average
+correlation, factor concentration and a DCC model. Block~C is about the dynamics, that is, how shocks
+travel and persist, and there we use a regression, a small VAR and a regime model. We give away the
+ending now. The change is partial, and it sits in the dynamics, not in the average levels.
+
+% 
+\section{Data}
+% 
+
+Everything comes from the provided \texttt{Data.xlsx} file: 14 daily series from January 1990 to April
+2026, about 9{,}600 trading days. They cover five asset classes: five equity indices (S\&P~500,
+EuroStoxx~50, Hang~Seng, MSCI~Emerging Markets, SMI), two ten-year sovereign yields (US and Germany),
+two commodities (WTI oil and gold), three exchange rates (EUR/USD, USD/JPY, USD/CHF) and two US credit
+indices (investment grade and high yield). We use no outside data.
+
+For the price series we take log-returns, $r_t = \ln P_t - \ln P_{t-1}$. The two yields are rates, not
+prices, so a log-return on them has no meaning; we use first differences, $\Delta y_t = y_t - y_{t-1}$.
+Where a market is closed for a holiday while others trade, we forward-fill for at most two days to keep
+the calendars aligned. From the five equity indices we build one equal-weight \emph{equity composite},
+which is the ``market'' series we use throughout, so that the volatility, correlation and regression
+results all describe the same object.
+
+One honest caveat about the data. The equity composite mixes indices that close at different hours
+(New York, Europe, Hong~Kong). This non-synchronous trading pushes measured same-day correlations down a
+little, and the forward-fill adds a few zero-return days that do the same. Both effects are small at the
+60-day horizon we work with, but we keep them in mind when reading the correlation results.
+
+We split the sample at March~2020. The choice is easy to defend: the WHO declared the pandemic on
+11~March, the Fed cut to zero on 15--17~March, equities had their worst week since 2008, and oil went
+negative in April. But ``defensible date'' is not the same as ``clean break''. A Chow test on the
+baseline correlation--volatility regression gives $F=0.78$ ($p=0.46$): there is no sharp jump at that
+exact month. A CUSUM test on the same residuals rejects stability over the whole sample ($p<0.001$). Read
+together, the picture is a gradual drift rather than one clean structural break, which is worth
+remembering when we interpret the COVID dummy later.
+
+The split is also very unbalanced: 347 pre-COVID months against 73 post-COVID months. The pre-COVID
+window is not one regime; it averages the dot-com bust, the 2008 crisis and the euro crisis. So
+``pre-COVID'' really means ``the long and varied past''. This imbalance is the single biggest limitation
+of the study, and it shapes how carefully we read every comparison.
+
+% 
+\section{Methodology}
+% 
+
+This section explains the tools and what we expect from each before seeing the numbers. The logic is
+that the diagnostics decide which tools are appropriate, so we start there.
+
+\subsection{Diagnostics that choose the tools}
+
+Three quick tests set up everything else. The Jarque--Bera test asks whether returns look normal; we
+expect a clean no, with fat tails. A Ljung--Box test on \emph{squared} returns asks whether volatility
+clusters; we expect yes. And the ADF and KPSS tests ask whether our monthly series are stationary, which
+decides how we are allowed to run regressions. Fat tails point us to a Student-$t$ GARCH and to
+extreme-value theory rather than to normal-based measures. Clustering justifies GARCH. And if the
+correlation series turns out to be highly persistent, the course's own warning about spurious regression
+(\citealp{phillips1986}: persistent series regressed in levels give high $R^2$ and autocorrelated
+residuals that mean nothing) tells us to lean on a lagged-dependent (ARX) specification rather than a
+plain level regression.
+
+\subsection{An inference rule we use everywhere}
+
+Our monthly risk measures are built on overlapping 60-day windows, so neighbouring months share most of
+their data and are strongly autocorrelated. A standard $t$-test treats them as independent and would
+report tiny, dishonest $p$-values. To avoid that trap we use a \emph{stationary block bootstrap} for
+every pre/post comparison: we resample contiguous blocks of months, which keeps the autocorrelation, and
+read the $p$-value from the resampled distribution. We also report each comparison against two
+benchmarks, the full pre-COVID history and the recent 2015--2020 calm. That split lets us separate
+``different from the long past'' from ``different from the recent quiet years''.
+
+\subsection{Block A -- marginals}
+
+We measure the monthly level of risk with realised volatility, the square root of the sum of squared
+daily returns. For the dynamics we fit a GARCH(1,1) with Student-$t$ shocks to the equity composite,
+\begin{equation}
+r_t = \mu + \varepsilon_t,\quad \varepsilon_t = \sigma_t z_t,\quad
+\sigma_t^2 = \omega + \alpha\,\varepsilon_{t-1}^2 + \beta\,\sigma_{t-1}^2 ,
+\end{equation}
+where $\alpha$ is how strongly today's shock feeds tomorrow's variance and $\alpha+\beta$ is how long
+shocks persist. The GJR extension adds a term that lets negative shocks raise variance more than positive
+ones, the leverage effect. For the tail we use peaks-over-threshold: we keep daily losses above the 95th
+percentile and fit a Generalised Pareto Distribution, whose shape parameter $\xi$ measures tail
+heaviness. We expect fat tails ($\xi>0$) and a leverage effect ($\gamma>0$) in both periods; the question
+is whether they got stronger after COVID.
+
+\subsection{Block B -- dependence}
+
+For co-movement we compute, each month, the average pairwise correlation $\rhobar$ across all 14 series
+on the trailing 60-day window. For factor concentration we run PCA on the same window and summarise it
+with the effective number of factors, an entropy measure
+\begin{equation}
+\Keff = \exp\!\Big(-\textstyle\sum_k \tilde\delta_k \ln \tilde\delta_k\Big),\qquad
+\tilde\delta_k = \delta_k/\textstyle\sum_j \delta_j ,
+\end{equation}
+where the $\delta_k$ are eigenvalues; $\Keff=14$ means perfectly spread risk, $\Keff=1$ a single driver.
+Then, because an average correlation can hide a change in \emph{how} correlation moves, we fit the DCC
+model of \citet{engle2002}. After filtering each equity series through its own GARCH, DCC lets the
+correlation matrix evolve as
+\begin{equation}
+Q_t = (1-a-b)\,\bar Q + a\,z_{t-1}z_{t-1}' + b\,Q_{t-1},
+\end{equation}
+where $a$ is the speed at which correlations react to a shared shock and $b$ is how persistent the
+correlation level is. EWMA (RiskMetrics, $\lambda=0.94$) is the same recursion with $a,b$ fixed, so we
+show it as the textbook special case. We expect $a$ to rise if correlations now react faster to stress.
+
+\subsection{Block C -- dynamics}
+
+Finally we study volatility and correlation together. Our main regression asks whether the sensitivity of
+correlation to volatility changed after COVID:
+\begin{equation}
+\rhobar_t = \alpha + \beta_1\,\sigmaEq_{t-1} + \beta_2\,(\sigmaEq_{t-1}\!\times\!\Dpost_t)
+            + \gamma\,\Dpost_t + \varepsilon_t ,
+\label{eq:modelF}
+\end{equation}
+where $\beta_2$ is the change in slope. Because $\rhobar$ is persistent, our \emph{primary} version adds
+$\rhobar_{t-1}$ on the right (an ARX model), and all versions use Newey--West \citep{newey1987} standard
+errors. A placebo version replaces the COVID dummy with a generic ``high-volatility'' dummy, to check we
+are not just picking up the mechanical correlation--volatility link. We then estimate a small VAR on
+(volatility, correlation) for Granger causality and impulse responses, and a two-state Markov-switching
+model on volatility to see whether high-risk months cluster after 2020.
+
+% 
+\section{Empirical Results}
+% 
+
+The diagnostics come out as expected and set the stage. Jarque--Bera rejects normality for all 14 series,
+and the Ljung--Box test finds volatility clustering in 13 of them, so Student-$t$ GARCH and extreme-value
+tools are the right choices. On the monthly series, ADF and KPSS agree that realised volatility is
+stationary but disagree on $\rhobar$ (ADF $p=0.13$, KPSS rejects): $\rhobar$ is borderline and very
+persistent. That is exactly the case \citet{phillips1986} warns about, so in Block~C the ARX model is our
+main specification and the level regression is only support.
+
+Figure~\ref{fig:timeseries} shows the four monthly measures over the whole sample. The COVID line marks a
+spike, but nothing in the picture looks like a permanent shift in level. The interesting changes, if any,
+are in the dynamics, and that is where we now look.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{../results/fig1_risk_measures_timeseries.png}
+\caption{The four monthly risk measures, January 1990 to April 2026. From top: realised equity volatility
+$\sigmaEq$, average pairwise correlation $\rhobar$, the share of variance in the first principal component
+$\lambdaOne$, and the effective number of factors $\Keff$. The red dashed line is March~2020.}
+\label{fig:timeseries}
+\end{figure}
+
+\subsection{Block A -- how big and how heavy are the shocks?}
+
+\textbf{The level did not move.} Table~\ref{tab:descriptive} compares the monthly measures before and
+after COVID, with block-bootstrap $p$-values. Average realised volatility is essentially identical
+(0.038 vs 0.038, $p=0.97$), and its spread is unchanged too. The violent level shock of March 2020 was
+real but temporary; on a monthly average it leaves no footprint. If the level is flat, the natural next
+question is whether the \emph{behaviour} of volatility changed, which is what GARCH measures.
+
+\begin{table}[H]
+\centering
+\caption{Monthly risk measures before and after COVID, with block-bootstrap $p$-values.}
+\label{tab:descriptive}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Series & Pre mean & Recent-pre & Post mean & Pre SD & Post SD & $p$(mean, full) \\
+\midrule
+$\sigmaEq$ (realised vol.)      & 0.038 & 0.032 & 0.038 & 0.022 & 0.021 & 0.966 \\
+$\rhobar$ (avg.\ correlation)   & 0.081 & 0.118 & 0.090 & 0.069 & 0.056 & 0.639 \\
+$\lambdaOne$ (PC1 share)        & 0.335 & 0.368 & 0.340 & 0.070 & 0.048 & 0.762 \\
+$\Keff$ (effective factors)     & 7.692 & 7.041 & 7.250 & 1.158 & 0.614 & 0.146 \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}
+\footnotesize
+\textit{Notes:} Recent-pre is 2015--2020. $p$-values are two-sided stationary block bootstraps (blocks of
+6 months) for the pre/post difference in means. A naive i.i.d.\ $t$-test would read close to zero for
+$\Keff$; the bootstrap shows that is an artefact of overlapping windows. Pre-COVID: 347 months.
+Post-COVID: 73 months.
+\end{flushleft}
+\end{table}
+
+\textbf{The dynamics did change.} Table~\ref{tab:garch} reports the GARCH fits. A likelihood-ratio test
+rejects equal parameters across the two periods ($\text{LR}=15.9$, $p=0.003$). Two things move in a
+sensible direction. The immediate reaction to a shock, $\alpha$, is a little larger after COVID
+(0.107 to 0.115), and total persistence $\alpha+\beta$ falls from 0.993 to 0.957. In plain terms, shocks
+hit slightly harder and die out faster. We are careful here: the pre-COVID $\alpha+\beta$ sits almost at
+one (a near-unit-root case), so any precise ``half-life'' number from it would be unstable, and we are
+comparing 30 years against 6. We therefore read the direction, not a precise figure. The GJR results
+(Table~\ref{tab:garch}, notes) confirm a leverage effect in both periods, slightly stronger after COVID
+($\gamma$: 0.136 to 0.153), and a likelihood-ratio test that the GJR parameters changed is significant at
+the 5\% level ($p=0.042$). Bad news has always raised volatility more than good news; after COVID it does
+so a touch more.
+
+\begin{table}[H]
+\centering
+\caption{GARCH(1,1)-$t$ on the equity composite (daily returns scaled by 100).}
+\label{tab:garch}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Period & $\hat\omega$ & $\hat\alpha$ & $\hat\beta$ & $\hat\alpha+\hat\beta$ & $\hat\nu$ & Log-lik \\
+\midrule
+Full        & 0.012 & 0.112 & 0.878 & 0.990 & 6.01 & $-10{,}777$ \\
+Pre-COVID   & 0.010 & 0.107 & 0.886 & 0.993 & 6.16 & $-8{,}915$ \\
+Post-COVID  & 0.031 & 0.115 & 0.842 & 0.957 & 5.55 & $-1{,}855$ \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}
+\footnotesize
+\textit{Notes:} LR test of equal parameters pre/post: $\text{LR}=15.9$, $p=0.003$ ($\chi^2_4$). GJR
+leverage term: $\hat\gamma_{\text{pre}}=0.136$, $\hat\gamma_{\text{post}}=0.153$ (both highly
+significant); LR test that the GJR parameters differ pre/post: $p=0.042$.
+\end{flushleft}
+\end{table}
+
+\textbf{The tail is probably heavier, but we cannot prove it.} Shocks also have tails, so we look there
+directly. Table~\ref{tab:gpd} shows the GPD fit on equity-composite losses. The shape parameter more than
+doubles (0.151 to 0.353) and the expected loss beyond the 1\% worst day (CVaR) rises from 3.81\% to
+4.29\%. That is the right sign for ``heavier tails''. But honesty matters more than a headline: with only
+82 post-COVID exceedances, the shape estimate is imprecise, and a likelihood-ratio test at the proper
+95th-percentile threshold is \emph{not} significant ($p=0.39$). It only becomes significant if we lower
+the threshold to the 90th percentile ($p=0.015$), which buys observations at the cost of mixing in
+non-tail data. So our reading is: tail risk probably increased, but six post-COVID years are not enough to
+confirm it at the 1\% tail. The Hill plot and Q--Q plots (Appendix~\ref{app:evt}) tell the same cautious
+story.
+
+\begin{table}[H]
+\centering
+\caption{Extreme-value (GPD) fit on equity-composite daily losses, 95th-percentile threshold.}
+\label{tab:gpd}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Period & \# losses & \# exceed. & threshold $u$ & $\hat\xi$ & VaR$_{99\%}$ & CVaR$_{99\%}$ \\
+\midrule
+Pre-COVID  & 7{,}973 & 399 & 1.45\% & 0.151 & 2.75\% & 3.81\% \\
+Post-COVID & 1{,}626 & ~82 & 1.31\% & 0.353 & 2.64\% & 4.29\% \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}
+\footnotesize
+\textit{Notes:} VaR is slightly lower post-COVID because the post threshold is lower; the heavier tail
+shows up in the higher CVaR. LR test at a common 95th-percentile threshold: $p=0.39$ (68 post
+exceedances, below the rule-of-thumb of 100). At the 90th percentile: $p=0.015$.
+\end{flushleft}
+\end{table}
+
+So the marginals changed in part: the level is flat, the dynamics shifted, the tail is suggestive but
+unproven. The obvious next question is whether assets now move together more, which would matter even more
+for a diversified portfolio.
+
+\subsection{Block B -- does diversification still work?}
+
+\textbf{Average correlation is flat; concentration tightened only a little.} Back in
+Table~\ref{tab:descriptive}, average correlation $\rhobar$ is statistically the same before and after
+($p=0.64$). The effective number of factors $\Keff$ falls from 7.69 to 7.25, which looks like a loss of
+diversification, but under the honest block bootstrap that drop is \emph{not} significant ($p=0.15$).
+What \emph{is} significant is that its variability shrank ($p=0.02$): after COVID the market sits more
+consistently at a slightly more concentrated structure, rather than at a clearly lower number of factors.
+The static PCA agrees with this modest reading: seven principal components were needed to explain 80\% of
+variance before COVID, six after (Figure~\ref{fig:scree}). This is a small narrowing, not a collapse, and
+we report it as such. It also raises a sharper question: if the \emph{average} correlation did not move,
+could the \emph{way} correlations move have changed?
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{../results/fig5_pca_scree.png}
+\caption{Share of variance explained by each principal component, pre- vs post-COVID. Seven components
+reach 80\% before COVID, six after, a modest tightening.}
+\label{fig:scree}
+\end{figure}
+
+\textbf{Correlations now react faster.} This is the clearest result in the paper, and it comes from DCC.
+Table~\ref{tab:dcc} shows the reaction parameter $a$ rising from 0.010 to 0.016 and the persistence
+parameter $b$ falling from 0.988 to 0.958, with a likelihood-ratio test that strongly rejects equal
+dynamics ($\text{LR}=57$, $p<0.001$). The reading is intuitive: after COVID, a shared shock pushes
+correlations up faster, and the old level matters a little less. Figure~\ref{fig:ewma} plots the dynamic
+correlation against the simple rolling average; both jump in March 2020, but the dynamic measure reacts
+and then comes back more sharply. This is the change a single average could never show, and it is the
+reason the average looked flat.
+
+\begin{table}[H]
+\centering
+\caption{DCC parameters on the five equity indices (two-step estimation).}
+\label{tab:dcc}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Period & $\hat a$ (reaction) & $\hat b$ (persistence) & $\hat a+\hat b$ \\
+\midrule
+Full        & 0.010 & 0.987 & 0.997 \\
+Pre-COVID   & 0.010 & 0.988 & 0.998 \\
+Post-COVID  & 0.016 & 0.958 & 0.975 \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}
+\footnotesize
+\textit{Notes:} LR test of equal $(a,b)$ pre/post: $\text{LR}=57$, $p<0.001$ ($\chi^2_2$). EWMA
+($\lambda=0.94$) is the same recursion with $a=0.06$, $b=0.94$ fixed; we use it as a cross-check
+(Figure~\ref{fig:ewma}).
+\end{flushleft}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{../results/fig4_ewma_vs_rolling.png}
+\caption{Average equity correlation: the 60-day rolling average (blue) and the DCC/EWMA dynamic measure
+(orange). Both spike in March 2020; the dynamic measure reacts and reverts more sharply.}
+\label{fig:ewma}
+\end{figure}
+
+So dependence did change, but in the \emph{speed} of correlation, not in its average level. That sets up
+the last block. If correlations react faster, does the static link between volatility and correlation,
+and the feedback between them, look any different?
+
+\subsection{Block C -- how do shocks travel and persist?}
+
+\textbf{The static volatility--correlation slope did not change.} Table~\ref{tab:models} reports the main
+regression. In our preferred ARX specification, the COVID interaction $\beta_2$ is tiny and far from
+significant ($p=0.79$), and a joint test on the COVID terms gives $p=0.76$. We are careful with words
+here: this is ``we could not detect a change'', not ``the change is zero''. With 73 post-COVID months the
+test has little power, and Block~B already showed the real change is in the \emph{speed} of correlation,
+which a single slope cannot capture. The result holds across alternative breakpoints, a 40-day window, and
+a first-difference version. The placebo (Model~G) is the useful check: replacing the COVID dummy with a
+generic high-volatility dummy gives a large, significant \emph{negative} interaction ($\beta_2=-2.11$,
+$p<0.001$). That is the familiar concave shape from \citet{longin2001}: when volatility is already high,
+correlations sit near their ceiling and extra volatility adds little. It confirms that the
+volatility--correlation link is mechanical, and that COVID did not bend it.
+
+\begin{table}[H]
+\centering
+\caption{Correlation--volatility regression (dependent variable $\rhobar_t$), Newey--West errors.}
+\label{tab:models}
+\small
+\begin{tabular}{lcccc}
+\toprule
+ & Model A & Model F & ARX-F (main) & Placebo G \\
+\midrule
+Constant                         & $0.034^{***}$ & $0.034^{***}$ & $0.006^{***}$ & $-0.016$ \\
+$\sigmaEq_{t-1}$ ($\beta_1$)     & $1.301^{***}$ & $1.265^{***}$ & $0.112^{*}$   & $3.051^{***}$ \\
+$\sigmaEq_{t-1}\!\times\!\Dpost$ ($\beta_2$) & -- & $0.216$ & $0.031$ & -- \\
+$\Dpost$ ($\gamma$)              & -- & $0.001$ & $-0.003$ & -- \\
+$\sigmaEq_{t-1}\!\times\!D^{\text{stress}}$ & -- & -- & -- & $-2.108^{***}$ \\
+$\rhobar_{t-1}$ ($\phi$)         & -- & -- & $0.886^{***}$ & -- \\
+\midrule
+Adj.\ $R^2$ & 0.171 & 0.170 & 0.812 & 0.202 \\
+$N$         & 420   & 420   & 420   & 420 \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}
+\footnotesize
+$^{***}p<0.01$, $^{**}p<0.05$, $^{*}p<0.10$. ARX-F is the main specification (it adds $\rhobar_{t-1}$ and
+guards against spurious regression). Joint Wald test on the COVID terms in ARX-F: $p=0.76$. The full
+A--H battery is in Appendix~\ref{app:models}.
+\end{flushleft}
+\end{table}
+
+\textbf{The feedback loop is intact.} A VAR with four lags (chosen by Hannan--Quinn) shows two-way Granger
+causality: volatility helps predict correlation ($F=4.89$, $p<0.001$) and correlation helps predict
+volatility ($F=4.14$, $p=0.003$). The impulse response (Figure~\ref{fig:irf}) says a volatility shock
+raises correlation for a few months and fades by about month six, and a variance decomposition attributes
+14\% of correlation's forecast error to volatility at one month, peaking near 22\% at three months. The
+pre-COVID Granger link is clearly significant ($p=0.006$); the post-COVID one is only borderline
+($p=0.064$), but with 73 months that is what limited power looks like, so we do not lean on a pre/post
+difference here. The transmission channel between volatility and correlation looks the same after COVID as
+before.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{../results/fig9_irf.png}
+\caption{Response of average correlation to a one-standard-deviation volatility shock (VAR, Cholesky
+ordering with volatility first). The effect peaks early and fades within about six months. Shaded band:
+90\% bootstrap interval.}
+\label{fig:irf}
+\end{figure}
+
+\textbf{Regimes: a weak and benchmark-dependent signal.} The two-state Markov-switching model on monthly
+volatility finds a calm regime (mean 0.029) and a stressed one (mean 0.065). Whether post-COVID months sit
+more often in the stressed regime depends entirely on the benchmark. Measured against the full 30-year
+past, which includes 2008, the post-COVID period spends \emph{less} time in stress (19.6\% vs 26.3\%).
+Measured against the recent 2015--2020 calm it spends slightly \emph{more} (19.6\% vs 18.1\%), a gap of
+about 1.4 percentage points. We will not dress up a 1.4-point, benchmark-dependent difference as a structural change. On its
+own, the regime evidence is too weak to support a clear conclusion (Figure~\ref{fig:ms},
+Appendix~\ref{app:dynamics}).
+
+\subsection{Putting it together}
+
+Table~\ref{tab:synth} collects the verdict, one row per feature, with the honest confidence level. Two
+features clearly moved (volatility dynamics, correlation reaction speed), two clearly did not (volatility
+level, the static slope), and three are weak or unproven (tail risk, factor concentration, regimes). The
+pattern is consistent: what changed is \emph{how fast} risk behaves, not its average level.
+
+\begin{table}[H]
+\centering
+\caption{Did it change? A summary across the features of the risk structure.}
+\label{tab:synth}
+\small
+\begin{tabular}{llll}
+\toprule
+Feature & Changed? & Main evidence & Confidence \\
+\midrule
+Volatility level        & No                    & realised vol mean flat ($p=0.97$)        & High \\
+Volatility dynamics     & Yes                   & GARCH LR break; $\alpha\!\uparrow$, $\alpha+\beta\!\downarrow$ & Medium \\
+Tail risk               & Probably              & $\xi$, CVaR up; few exceedances          & Low \\
+Factor concentration    & Partly (variance)     & $\Keff$ mean flat ($p=0.15$); variance down & Low \\
+Correlation dynamics    & Yes                   & DCC $a\!\uparrow$, $b\!\downarrow$; LR break & Medium-high \\
+Vol.--corr.\ static slope & Not detected        & $\beta_2$ insignificant everywhere       & Limited power \\
+Regime frequency        & Unclear               & benchmark-dependent sign                 & Low \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% 
+\section{Discussion}
+% 
+
+What does this mean for someone actually managing risk? The short version is that the parts of a risk
+model worth updating are the ones describing \emph{how fast} risk moves, not the ones describing its
+average level.
+
+Start with volatility. Persistence fell, so a shock fades faster than a pre-2020 model assumes. A desk
+still running old GARCH parameters keeps its risk estimates high for too long after a shock and
+over-hedges well into the recovery. Correlation is the subtler case. Its average did not move, yet it now
+reacts faster, so a model that updates correlation slowly arrives late to a stress episode. A conditional,
+DCC-style correlation reacts in time; a long rolling window does not. One warning follows from the same
+results. Because the static slope did not change, a given volatility spike does not produce a
+\emph{bigger} correlation jump than before, only a \emph{faster} one, and that difference is easy to miss
+in a stress test.
+
+Diversification is the mild part of the story. The number of independent risk factors did not fall in a
+way we can defend statistically; it only grew more stable. A manager need not tear up the diversification
+plan, but should expect a little less day-to-day movement in how concentrated the market feels. The tail
+is the open question. The signal points to heavier losses, but it is not strong enough yet to act on with
+confidence, so it belongs on a watch list rather than in a rewritten capital model.
+
+% 
+\section{Conclusion}
+% 
+
+Did the structure of risk change after COVID-19? Our answer is \emph{partially, and through specific
+channels}. Volatility shocks became a little sharper and shorter-lived, and cross-asset correlations now
+react faster to shared shocks; both changes are statistically clear. The average level of volatility and
+of correlation did not move, and the static link between them did not change. Tail risk and factor
+concentration point in the ``riskier'' direction but are too weak, on six post-COVID years, to confirm,
+and the regime evidence depends on the benchmark.
+
+We are upfront about the limits. The post-COVID window is only 73 months, which caps the power of every
+test; we use one equity composite rather than studying each asset class separately; and by design we use
+no macro or policy variables, so we describe the change without explaining its cause. The honest way to
+keep this question alive is to watch two numbers as the sample grows: GARCH persistence $\alpha+\beta$ and
+the DCC reaction parameter $a$. If they drift back toward their pre-2020 values, the changes we document
+were temporary; if they hold, the structure of risk really did move, and the time to recalibrate is now.
+
+% 
+\newpage
+\bibliographystyle{apalike}
+\begin{thebibliography}{99}
+
+\bibitem[Ang and Bekaert(2002)]{ang2002}
+Ang, A.\ and Bekaert, G.\ (2002).
+International asset allocation with regime shifts.
+\textit{Review of Financial Studies}, 15(4), 1137--1187.
+
+\bibitem[Bae et al.(2003)]{bae2003}
+Bae, K.H., Karolyi, G.A.\ and Stulz, R.M.\ (2003).
+A new approach to measuring financial contagion.
+\textit{Review of Financial Studies}, 16(3), 717--763.
+
+\bibitem[Baker et al.(2020)]{baker2020}
+Baker, S.R., Bloom, N., Davis, S.J.\ and Terry, S.J.\ (2020).
+COVID-induced economic uncertainty.
+\textit{NBER Working Paper}, No.~26983.
+
+\bibitem[Bollerslev(1986)]{bollerslev1986}
+Bollerslev, T.\ (1986).
+Generalised autoregressive conditional heteroskedasticity.
+\textit{Journal of Econometrics}, 31(3), 307--327.
+
+\bibitem[Embrechts et al.(1997)]{embrechts1997}
+Embrechts, P., Kl\"{u}ppelberg, C.\ and Mikosch, T.\ (1997).
+\textit{Modelling Extremal Events for Insurance and Finance}.
+Springer, Berlin.
+
+\bibitem[Engle(1982)]{engle1982}
+Engle, R.F.\ (1982).
+Autoregressive conditional heteroskedasticity with estimates of the variance of UK inflation.
+\textit{Econometrica}, 50(4), 987--1007.
+
+\bibitem[Engle(2002)]{engle2002}
+Engle, R.F.\ (2002).
+Dynamic conditional correlation: a simple class of multivariate GARCH models.
+\textit{Journal of Business \& Economic Statistics}, 20(3), 339--350.
+
+\bibitem[Forbes and Rigobon(2002)]{forbes2002}
+Forbes, K.J.\ and Rigobon, R.\ (2002).
+No contagion, only interdependence: measuring stock market co-movements.
+\textit{Journal of Finance}, 57(5), 2223--2261.
+
+\bibitem[Glosten et al.(1993)]{glosten1993}
+Glosten, L.R., Jagannathan, R.\ and Runkle, D.E.\ (1993).
+On the relation between the expected value and the volatility of the nominal excess return on stocks.
+\textit{Journal of Finance}, 48(5), 1779--1801.
+
+\bibitem[Hamilton(1989)]{hamilton1989}
+Hamilton, J.D.\ (1989).
+A new approach to the economic analysis of nonstationary time series and the business cycle.
+\textit{Econometrica}, 57(2), 357--384.
+
+\bibitem[Longin and Solnik(2001)]{longin2001}
+Longin, F.\ and Solnik, B.\ (2001).
+Extreme correlation of international equity markets.
+\textit{Journal of Finance}, 56(2), 649--676.
+
+\bibitem[Newey and West(1987)]{newey1987}
+Newey, W.K.\ and West, K.D.\ (1987).
+A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent covariance matrix.
+\textit{Econometrica}, 55(3), 703--708.
+
+\bibitem[Phillips(1986)]{phillips1986}
+Phillips, P.C.B.\ (1986).
+Understanding spurious regressions in econometrics.
+\textit{Journal of Econometrics}, 33(3), 311--340.
+
+\end{thebibliography}
+
+% 
+\newpage
+\begin{appendices}
+% 
+
+\section{Stationarity tests}
+\label{app:adf}
+
+\begin{table}[H]
+\centering
+\caption{ADF and KPSS tests on the monthly risk measures.}
+\small
+\begin{tabular}{lrrcrc}
+\toprule
+Series & ADF stat & ADF $p$ & ADF decision & KPSS $p$ & KPSS decision \\
+\midrule
+$\sigmaEq$   & $-5.66$ & $<0.001$ & stationary  & $\geq 0.10$ & stationary \\
+$\rhobar$    & $-2.46$ & $0.126$  & unit root?  & $\leq 0.01$ & non-stationary \\
+$\lambdaOne$ & $-4.12$ & $0.001$  & stationary  & $\leq 0.01$ & non-stationary \\
+$\Keff$      & $-2.99$ & $0.036$  & stationary  & $\leq 0.01$ & non-stationary \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}
+\footnotesize
+\textit{Notes:} The disagreement for $\rhobar$ (ADF cannot reject a unit root, KPSS rejects stationarity)
+is why we use the ARX and first-difference specifications in Block~C. KPSS $p$-values are reported on a
+discrete grid.
+\end{flushleft}
+\end{table}
+
+\section{Full regression battery}
+\label{app:models}
+
+\begin{table}[H]
+\centering
+\caption{Models A--H, dependent variable $\rhobar_t$, Newey--West errors.}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+ & A & B & C & D & E & F & G & H \\
+\midrule
+$\sigmaEq_{t-1}$ & $1.301^{***}$ & $1.857^{***}$ & $1.477^{***}$ & $1.830^{***}$ & $2.753^{***}$ & $1.265^{***}$ & $3.051^{***}$ & $2.307^{***}$ \\
+$\times\,\Dpost$ & -- & -- & -- & -- & -- & $0.216$ & -- & $0.149$ \\
+$\Dpost$         & -- & -- & -- & -- & -- & $0.001$ & -- & $-0.020$ \\
+$\times\,D^{\text{stress}}$ & -- & -- & -- & -- & -- & -- & $-2.108^{***}$ & -- \\
+Block B controls & & \checkmark & & & sel. & & & \checkmark \\
+Block C controls & & & \checkmark & & sel. & & & \checkmark \\
+Block D controls & & & & \checkmark & sel. & & & \checkmark \\
+\midrule
+Adj.\ $R^2$ & 0.171 & 0.287 & 0.253 & 0.261 & 0.358 & 0.170 & 0.202 & 0.409 \\
+$N$ & 420 & 420 & 420 & 420 & 420 & 420 & 420 & 420 \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}
+\footnotesize
+$^{***}p<0.01$. Block~B: peer volatilities (oil, gold, EM, Hang~Seng). Block~C: credit spread,
+transatlantic yield spread, change in US~10Y. Block~D: FX volatilities. ``sel.'' keeps the most
+significant control from each block. The COVID interaction $\beta_2$ is insignificant in every model
+that contains it; the only significant interaction is the placebo stress term in~G.
+\end{flushleft}
+\end{table}
+
+Additional robustness (all consistent with no detectable slope change): alternative breakpoints
+20~February~2020 ($\beta_2=0.19$, $p=0.50$) and 1~April~2020 ($\beta_2=0.12$, $p=0.67$); a
+first-differenced dependent variable ($\beta_2=0.01$, $p=0.95$); and a 40-day rolling window. Using
+$\lambdaOne$ as the dependent variable does show a significant interaction ($\beta_2=-0.82$, $p=0.02$),
+the one place a COVID slope effect appears.
+
+\section{Sub-block correlations and PC1 loadings}
+\label{app:pca}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{../results/fig2_subblock_correlations.png}
+\caption{Rolling 60-day correlation between equities and each other asset class.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{../results/fig6_pc1_loadings.png}
+\caption{Loadings on the first principal component, pre- vs post-COVID (sign fixed so equities load
+positively).}
+\end{figure}
+
+\section{Tail diagnostics}
+\label{app:evt}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{../results/fig7b_hill_estimator.png}
+\caption{Hill tail-index estimator against the number of upper order statistics. The post-COVID curve
+sits higher, but the short sample makes the level uncertain.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{../results/fig7_gpd_qq.png}
+\caption{Q--Q plots of exceedances against the fitted GPD, pre (left) and post (right). The points track
+the 45-degree line, so the GPD fit is reasonable in both periods.}
+\end{figure}
+
+\section{Regimes and transmission}
+\label{app:dynamics}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{../results/fig8_markov_switching.png}
+\caption{Top: monthly realised volatility. Bottom: smoothed probability of the high-risk regime from the
+two-state Markov-switching model. The red line is March~2020.}
+\label{fig:ms}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{../results/fig10_fevd.png}
+\caption{Forecast-error variance decomposition for the VAR on (volatility, correlation).}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{../results/fig11_irf_prepost.png}
+\caption{Correlation's response to a volatility shock, estimated separately on the pre- and post-COVID
+samples. The post-COVID estimate is noisy (73 months) and we do not read a pre/post difference into it.}
+\end{figure}
+
+\end{appendices}
+
+\end{document}
